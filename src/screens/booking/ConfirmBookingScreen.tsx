@@ -7,25 +7,39 @@ import { COLORS, SPACING } from '../../theme';
 import { bookingService } from '../../api/bookingService';
 
 export const ConfirmBookingScreen = ({ route, navigation }: any) => {
-  const { selectedCategory, distance = 8.5 } = route.params || {};
+  const { selectedCategory, pickup, destination, distance = 8.5 } = route.params || {};
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
     try {
       setLoading(true);
-      // Hardcoded mock current locations for demo purposes
-      const pickup = { latitude: 28.6139, longitude: 77.2090, address: 'Sector 44, Gurugram' };
-      const drop = { latitude: 28.6250, longitude: 77.2150, address: 'Destination Point' };
       
+      const finalPickup = {
+        ...pickup,
+        latitude: pickup?.latitude,
+        longitude: pickup?.longitude
+      };
+      
+      const finalDestination = {
+        ...destination,
+        latitude: destination?.latitude,
+        longitude: destination?.longitude
+      };
+
       const res = await bookingService.createBooking(
-        pickup,
-        drop,
+        finalPickup,
+        finalDestination,
         distance,
         selectedCategory?.type || 'Mini'
       );
       
-      // Successfully created ride, pass bookingId to tracker
-      navigation.navigate('Tracking', { bookingId: res.data.booking._id });
+      // Successfully created ride, pass bookingId to searching screen
+      navigation.navigate('RideSearching', { 
+        bookingId: res.data.booking._id,
+        pickup,
+        destination,
+        selectedCategory
+      });
     } catch (err: any) {
       console.error('Booking failed', err);
       Alert.alert('Error', 'Failed to dispatch ride to backend.');
@@ -40,16 +54,25 @@ export const ConfirmBookingScreen = ({ route, navigation }: any) => {
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: 28.6139,
-          longitude: 77.2090,
+          latitude: pickup?.latitude || 28.6139,
+          longitude: pickup?.longitude || 77.2090,
           latitudeDelta: 0.0122,
           longitudeDelta: 0.0121,
         }}
       >
-        <Marker 
-          coordinate={{ latitude: 28.6139, longitude: 77.2090 }} 
-          title="Pickup"
-        />
+        {pickup && (
+          <Marker 
+            coordinate={{ latitude: pickup.latitude, longitude: pickup.longitude }} 
+            title="Pickup"
+          />
+        )}
+        {destination && (
+          <Marker 
+            coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} 
+            title="Destination"
+            pinColor={COLORS.accent}
+          />
+        )}
       </MapView>
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
@@ -67,7 +90,9 @@ export const ConfirmBookingScreen = ({ route, navigation }: any) => {
           <Typography variant="h2" style={styles.title}>Confirm Pickup</Typography>
           <View style={styles.locationRow}>
             <View style={styles.dot} />
-            <Typography variant="body">Sector 44, Gurugram</Typography>
+            <Typography variant="body" numberOfLines={1}>
+              {pickup?.address || 'Pickup Location'}
+            </Typography>
           </View>
           
           <View style={styles.priceRow}>

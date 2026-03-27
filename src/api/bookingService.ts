@@ -7,8 +7,8 @@ export interface LocationData {
 }
 
 export const bookingService = {
-  estimateFare: async (distance: number) => {
-    return apiClient.post('/booking/estimate', { distance });
+  estimateFare: async (pickup: LocationData, destination: LocationData) => {
+    return apiClient.post('/booking/estimate', { pickup, destination });
   },
 
   createBooking: async (
@@ -28,5 +28,9 @@ export const bookingService = {
   
   getBookingDetails: async (bookingId: string) => {
     return apiClient.get(`/booking/${bookingId}`);
+  },
+
+  getHistory: async () => {
+    return apiClient.get('/booking/history');
   }
 };

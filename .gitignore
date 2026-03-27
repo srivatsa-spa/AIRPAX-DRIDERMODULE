@@ -12,8 +12,11 @@ build/
 *.mode2v3
 !default.mode2v3
 *.perspectivev3
-!default.perspectivev3
-xcuserdata
+!default.perspec/Untitled-2
+index.js.original
+
+# Android build logs
+android/*.txt
 *.xccheckout
 *.moved-aside
 DerivedData

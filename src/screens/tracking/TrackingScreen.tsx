@@ -1,51 +1,110 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Image, Share } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Image, Share, Animated as RNAnimated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline } from 'react-native-maps';
 import { ChevronLeft, HelpCircle, Clock, Star, Phone, MessageSquare, Share2, Shield, ChevronRight, Car } from 'lucide-react-native';
 import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
 import { bookingService } from '../../api/bookingService';
+import { initiateSocketConnection, joinBookingRoom, subscribeToLocationUpdates, getSocket } from '../../utils/socket';
+import { decodePolyline } from '../../utils/mapUtils';
 
 export const TrackingScreen = ({ route, navigation }: any) => {
-  const { bookingId } = route.params || {};
-  const [eta] = useState(3);
-  const [status, setStatus] = useState('REQUESTED');
+  const { bookingId, driverInfo: initialDriverInfo } = route.params || {};
+  const mapRef = React.useRef<MapView>(null);
   
-  // Dummy driver data matching the image (Would be replaced by live data in production)
-  const driver = {
+  const [status, setStatus] = useState('ASSIGNED');
+  const [eta, setEta] = useState(3);
+  const [driver, setDriver] = useState(initialDriverInfo || {
     name: 'Michael S.',
     rating: '4.9',
     car: 'Toyota Innova',
     color: 'White',
     plate: 'TS09 AB 1234',
     distance: '1.2'
+  });
+
+  // Pickup coordinates and Animated driver coordinates for smooth marker movement
+  const pickupCoords = { latitude: 37.78825, longitude: -122.4324 };
+  const driverPos = React.useRef(new RNAnimated.ValueXY({ x: -122.41, y: 37.75 })).current;
+  const [driverCoords, setDriverCoords] = useState({ latitude: 37.75, longitude: -122.41 });
+  const [routeCoordinates, setRouteCoordinates] = useState<any[]>([pickupCoords, { latitude: 37.75, longitude: -122.41 }]);
+
+  const fetchRoute = async (start: any, end: any) => {
+    // Replace YOUR_API_KEY with real key
+    const API_KEY = 'GOOGLE_MAPS_API_KEY'; 
+    if (API_KEY === 'GOOGLE_MAPS_API_KEY') {
+       console.log('No Google API Key, using direct line for Polyline');
+       setRouteCoordinates([start, end]);
+       return;
+    }
+
+    try {
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&key=${API_KEY}`;
+      const response = await fetch(url);
+      const json = await response.json();
+      if (json.routes.length > 0) {
+        const points = json.routes[0].overview_polyline.points;
+        const coords = decodePolyline(points);
+        setRouteCoordinates(coords);
+      }
+    } catch (error) {
+       console.error('Route Fetch Error:', error);
+    }
   };
 
   React.useEffect(() => {
-    if (!bookingId) {
-      // Fallback to mock behavior if no bookingId
-      const timer = setTimeout(() => navigation.navigate('RideInProgress'), 5000);
-      return () => clearTimeout(timer);
+    if (!bookingId) return;
+    
+    // Fetch initial route
+    fetchRoute(driverCoords, pickupCoords);
+
+    // 1. Join Socket Room
+    joinBookingRoom(bookingId);
+    
+    // 2. Subscribe to Location Updates
+    subscribeToLocationUpdates((data) => {
+      console.log('Live Location received:', data);
+      if (data.lat && data.lng) {
+        // Smoothly animate the marker
+        RNAnimated.timing(driverPos, {
+          toValue: { x: data.lng, y: data.lat },
+          duration: 2000,
+          useNativeDriver: false 
+        }).start();
+
+        // Update driverCoords state
+        const newCoords = { latitude: data.lat, longitude: data.lng };
+        setDriverCoords(newCoords);
+        
+        // Update route polyline (only every few updates to save API calls)
+        // fetchRoute(newCoords, pickupCoords);
+
+        // Auto-fit map
+        mapRef.current?.fitToCoordinates(
+           [pickupCoords, newCoords],
+           { edgePadding: { top: 100, right: 100, bottom: 400, left: 100 }, animated: true }
+        );
+
+        setEta((prev: number) => Math.max(1, prev - 0.1));
+      }
+    });
+
+    // 3. Subscribe to Status Updates
+    const socket = getSocket();
+    if (socket) {
+      socket.on('status-update', (data) => {
+        setStatus(data.status);
+        if (data.status === 'COMPLETED') {
+           navigation.navigate('TripSuccess', { bookingId });
+        }
+      });
     }
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await bookingService.getBookingDetails(bookingId);
-        const liveStatus = res.data.booking.status;
-        setStatus(liveStatus);
-        
-        if (liveStatus === 'ACCEPTED' || liveStatus === 'IN_PROGRESS') {
-           clearInterval(interval);
-           navigation.navigate('RideInProgress', { bookingId });
-        }
-      } catch (err) {
-        console.log('Polling status error', err);
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [bookingId, navigation]);
+    return () => {
+      // socket listener cleanup if needed
+    };
+  }, [bookingId]);
 
   const handleShare = async () => {
     try {
@@ -60,35 +119,39 @@ export const TrackingScreen = ({ route, navigation }: any) => {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         customMapStyle={grayscaleMapStyle}
         initialRegion={{
-          latitude: 37.78825,
-          longitude: -122.4324,
+          latitude: (pickupCoords.latitude + driverCoords.latitude) / 2,
+          longitude: (pickupCoords.longitude + driverCoords.longitude) / 2,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
       >
         <Polyline
-          coordinates={[
-            { latitude: 37.78825, longitude: -122.4324 },
-            { latitude: 37.75, longitude: -122.41 },
-          ]}
+          coordinates={routeCoordinates}
           strokeColor={COLORS.primary}
           strokeWidth={4}
           lineDashPattern={[5, 10]}
         />
-        <Marker coordinate={{ latitude: 37.78825, longitude: -122.4324 }}>
+        <Marker coordinate={pickupCoords}>
             <View style={styles.destinationMarker}>
                 <View style={styles.destinationMarkerInner} />
             </View>
         </Marker>
-        <Marker coordinate={{ latitude: 37.75, longitude: -122.41 }}>
+        
+        <Marker.Animated 
+           coordinate={{ 
+             latitude: driverPos.y as any, 
+             longitude: driverPos.x as any 
+           } as any}
+        >
             <View style={styles.driverMarker}>
                 <Car color={COLORS.primary} size={18} fill={COLORS.primary} strokeWidth={0.5} />
             </View>
-        </Marker>
+        </Marker.Animated>
       </MapView>
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
@@ -100,7 +163,7 @@ export const TrackingScreen = ({ route, navigation }: any) => {
             <View style={styles.headerTitleContainer}>
                 <Typography variant="caption" bold color={COLORS.accent} style={styles.rideTypeLabel}>AIRPAX RIDE</Typography>
                 <Typography variant="body" bold style={styles.rideStatusLabel}>
-                    {status === 'REQUESTED' ? 'Finding your Driver...' : 'Driver is arriving'}
+                    {status === 'ASSIGNED' ? 'Driver is arriving' : status}
                 </Typography>
             </View>
 

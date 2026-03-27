@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Check, User, MapPin, CreditCard, Bell, Moon, Globe, HelpCircle, Headphones, Shield, ChevronRight } from 'lucide-react-native';
 import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
+import { useAppStore } from '../../store/useAppStore';
 
 export const ProfileScreen = ({ navigation }: any) => {
+  const { user, logout } = useAppStore();
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -41,14 +43,14 @@ export const ProfileScreen = ({ navigation }: any) => {
           </View>
           
           <View style={styles.userNameContainer}>
-            <Typography variant="h1" bold style={styles.userName}>Alex Rivers</Typography>
+            <Typography variant="h1" bold style={styles.userName}>{user?.name || 'Airpax Rider'}</Typography>
             <View style={styles.premiumIndicator}>
                 <Typography variant="caption" bold color={COLORS.white}>Elite Member</Typography>
             </View>
           </View>
           
           <Typography variant="body" color={COLORS.textSecondary} style={styles.userHandle}>
-            +1 (555) 000-0000 • alex.rivers@airpax.io
+            {user?.phone || '+91 00000 00000'} • {user?.email || 'rider@airpax.io'}
           </Typography>
         </View>
 
@@ -56,7 +58,7 @@ export const ProfileScreen = ({ navigation }: any) => {
             <MenuGroup title="ACCOUNT SETTINGS">
               <MenuItem Icon={User} label="Personal Information" sublabel="Update name and phone" />
               <MenuItem Icon={MapPin} label="Saved Locations" sublabel="Home, Work and other points" />
-              <MenuItem Icon={CreditCard} label="Payment Methods" sublabel="Manage cards and UPI" />
+              <MenuItem Icon={CreditCard} label="Payment Methods" sublabel={`Balance: ₹${user?.walletBalance || 0}`} onPress={() => navigation.navigate('Wallet')} />
             </MenuGroup>
 
             <MenuGroup title="PREFERENCES">
@@ -72,7 +74,7 @@ export const ProfileScreen = ({ navigation }: any) => {
             </MenuGroup>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
           <Typography bold color={COLORS.danger} style={styles.logoutText}>SIGN OUT</Typography>
         </TouchableOpacity>
 
@@ -101,7 +103,8 @@ const MenuItem = ({
   sublabel,
   rightText, 
   hasSwitch, 
-  value 
+  value,
+  onPress 
 }: { 
   Icon: any; 
   label: string; 
@@ -109,8 +112,9 @@ const MenuItem = ({
   rightText?: string; 
   hasSwitch?: boolean; 
   value?: boolean;
+  onPress?: () => void;
 }) => (
-  <TouchableOpacity style={styles.menuItem} activeOpacity={0.6}>
+  <TouchableOpacity style={styles.menuItem} activeOpacity={0.6} onPress={onPress}>
     <View style={styles.menuItemLeft}>
       <View style={styles.menuIconContainer}>
         <Icon color={COLORS.white} size={18} strokeWidth={2} />

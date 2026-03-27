@@ -6,11 +6,34 @@ import { ChevronLeft, Share2, X, MapPin, Car } from 'lucide-react-native';
 import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
 
-export const RideSearchingScreen = ({ navigation }: any) => {
+import { initiateSocketConnection, disconnectSocket, joinBookingRoom, getSocket } from '../../utils/socket';
+
+export const RideSearchingScreen = ({ navigation, route }: any) => {
+  const { bookingId, pickup } = route.params || {};
+  const pickupLat = pickup?.latitude || 28.6139;
+  const pickupLng = pickup?.longitude || 77.2090;
+
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // 1. Socket Setup
+    initiateSocketConnection();
+    
+    if (bookingId) {
+      joinBookingRoom(bookingId);
+      
+      const socket = getSocket();
+      if (socket) {
+        socket.on('status-update', (data) => {
+          console.log('Status update received:', data);
+          if (data.status === 'ASSIGNED' || data.status === 'ACCEPTED') {
+            navigation.navigate('Tracking', { bookingId, driverInfo: data.driverInfo });
+          }
+        });
+      }
+    }
+
     // Pulse animation for map marker
     Animated.loop(
       Animated.timing(pulseAnim, {
@@ -24,18 +47,14 @@ export const RideSearchingScreen = ({ navigation }: any) => {
     // Progress bar animation
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: 5000,
+      duration: 10000, // Longer search time for realism
       easing: Easing.linear,
       useNativeDriver: false,
     }).start();
 
-    // Simulation of navigation to Tracking after search
-    const timer = setTimeout(() => {
-      navigation.navigate('Tracking');
-    }, 6000);
-
-    return () => clearTimeout(timer);
-  }, [navigation, pulseAnim, progressAnim]);
+    return () => {
+    };
+  }, [navigation, bookingId, pulseAnim, progressAnim]);
 
   return (
     <View style={styles.container}>
@@ -44,20 +63,20 @@ export const RideSearchingScreen = ({ navigation }: any) => {
         style={styles.map}
         customMapStyle={mapStyle}
         initialRegion={{
-          latitude: 37.7749,
-          longitude: -122.4194,
+          latitude: pickupLat,
+          longitude: pickupLng,
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}
       >
         <Circle
-          center={{ latitude: 37.7749, longitude: -122.4194 }}
+          center={{ latitude: pickupLat, longitude: pickupLng }}
           radius={500}
           fillColor="rgba(10, 46, 91, 0.05)"
           strokeColor="rgba(10, 46, 91, 0.1)"
           strokeWidth={1}
         />
-        <Marker coordinate={{ latitude: 37.7749, longitude: -122.4194 }}>
+        <Marker coordinate={{ latitude: pickupLat, longitude: pickupLng }}>
           <View style={styles.markerContainer}>
             <Animated.View 
               style={[

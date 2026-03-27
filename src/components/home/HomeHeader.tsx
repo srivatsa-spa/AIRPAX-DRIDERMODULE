@@ -5,9 +5,10 @@ import { Bell } from 'lucide-react-native';
 import { Typography } from '../Typography';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
 
-export const HomeHeader = ({ onProfilePress, onNotificationPress }: { 
+export const HomeHeader = ({ onProfilePress, onNotificationPress, currentAddress }: { 
   onProfilePress?: () => void; 
   onNotificationPress?: () => void;
+  currentAddress?: string;
 }) => {
   return (
     <View style={styles.container}>
@@ -24,8 +25,13 @@ export const HomeHeader = ({ onProfilePress, onNotificationPress }: {
       {/* Center: Current Location Pill */}
       <View style={styles.locationPill}>
         <View style={styles.dot} />
-        <Typography variant="caption" bold style={styles.locationText}>
-          CURRENT LOCATION
+        <Typography 
+          variant="caption" 
+          bold 
+          style={styles.locationText}
+          numberOfLines={1}
+        >
+          {currentAddress || 'CURRENT LOCATION'}
         </Typography>
       </View>
 
@@ -71,9 +77,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: RADII.round,
+    maxWidth: '60%',
     ...SHADOWS.light,
   },
   dot: {

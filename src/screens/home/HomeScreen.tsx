@@ -6,29 +6,42 @@ import { HomeHeader, RideSelectionCard } from '../../components';
 import { COLORS, SHADOWS, RADII } from '../../theme';
 
 import { useNavigation } from '@react-navigation/native';
+import { useLocation } from '../../hooks/useLocation';
 
 export const HomeScreen = () => {
   const navigation = useNavigation<any>();
+  const { location, address, isLoading } = useLocation();
+
+  const initialRegion = {
+    latitude: location?.latitude || 28.6139,
+    longitude: location?.longitude || 77.2090,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
 
   return (
     <View style={styles.container}>
       <MapView
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={{
-          latitude: 28.6139,
-          longitude: 77.2090,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+        initialRegion={initialRegion}
+        region={location ? {
+          ...initialRegion,
+          latitude: location.latitude,
+          longitude: location.longitude,
+        } : undefined}
+        showsUserLocation={true}
+        followsUserLocation={true}
       >
         {/* Current Location Marker */}
-        <Marker coordinate={{ latitude: 28.6139, longitude: 77.2090 }}>
-          <View style={styles.locationMarkerContainer}>
-            <View style={styles.locationMarkerPulse} />
-            <View style={styles.locationMarkerCenter} />
-          </View>
-        </Marker>
+        {location && (
+          <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }}>
+            <View style={styles.locationMarkerContainer}>
+              <View style={styles.locationMarkerPulse} />
+              <View style={styles.locationMarkerCenter} />
+            </View>
+          </Marker>
+        )}
 
         {/* Scattered Car Markers */}
         <CarMarker coordinate={{ latitude: 28.615, longitude: 77.212 }} />
@@ -40,6 +53,7 @@ export const HomeScreen = () => {
         <HomeHeader 
           onProfilePress={() => navigation.navigate('Profile')} 
           onNotificationPress={() => {}}
+          currentAddress={address}
         />
         
         <View style={styles.bottomContainer}>

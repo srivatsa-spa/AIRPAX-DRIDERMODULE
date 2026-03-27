@@ -3,10 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "npm run reverse && react-native run-android --port 8081 --device emulator-5554",
     "ios": "react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start",
+    "start": "react-native start --reset-cache",
+    "reverse": "adb -s emulator-5554 reverse tcp:8081 tcp:8081",
     "test": "jest",
     "postinstall": "patch-package"
   },
@@ -22,6 +23,7 @@
     "lucide-react-native": "^0.577.0",
     "react": "19.2.0",
     "react-native": "0.83.2",
+    "react-native-geolocation-service": "^5.3.1",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-maps": "1.27.1",
     "react-native-reanimated": "4.2.1",
@@ -29,6 +31,7 @@
     "react-native-screens": "^4.24.0",
     "react-native-svg": "^15.15.3",
     "react-native-worklets": "0.7.2",
+    "socket.io-client": "^4.8.3",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

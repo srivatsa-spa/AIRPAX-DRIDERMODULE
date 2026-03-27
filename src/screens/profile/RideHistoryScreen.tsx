@@ -1,17 +1,103 @@
-import React from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, SlidersHorizontal, Car, FileText, Circle, MapPin, CreditCard } from 'lucide-react-native';
+import { ChevronLeft, SlidersHorizontal, Car, FileText, Circle, MapPin, CreditCard, Clock } from 'lucide-react-native';
 import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
-
-const RIDES = [
-  { id: '1', date: 'Mar 10, 2026', time: '05:30 PM', destination: 'India Gate', price: '₹180', status: 'Completed' },
-  { id: '2', date: 'Mar 08, 2026', time: '10:15 AM', destination: 'DLF Cyber City', price: '₹250', status: 'Completed' },
-  { id: '3', date: 'Mar 05, 2026', time: '02:45 PM', destination: 'IGI Airport T3', price: '₹680', status: 'Cancelled' },
-];
+import { bookingService } from '../../api/bookingService';
 
 export const RideHistoryScreen = ({ navigation }: any) => {
+  const [rides, setRides] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totals, setTotals] = useState({ count: 0, spent: 0 });
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await bookingService.getHistory();
+      if (response.data.success) {
+        setRides(response.data.bookings);
+        const spent = response.data.bookings.reduce((acc: number, ride: any) => 
+          ride.status === 'COMPLETED' ? acc + (ride.fare?.total || 0) : acc, 0
+        );
+        setTotals({ count: response.data.bookings.length, spent });
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderRideItem = ({ item }: { item: any }) => (
+    <View style={styles.rideCard}>
+      <View style={styles.cardHeader}>
+        <View style={styles.dateTimeContainer}>
+          <Typography variant="body" bold style={styles.dateText}>
+            {new Date(item.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Typography>
+          <View style={styles.timeRow}>
+            <Clock size={12} color={COLORS.textSecondary} />
+            <Typography variant="caption" color={COLORS.textSecondary} bold style={{ marginLeft: 4 }}>
+                {new Date(item.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            </Typography>
+          </View>
+        </View>
+        <View style={[
+          styles.statusBadge, 
+          item.status === 'COMPLETED' ? styles.statusCompleted : 
+          item.status === 'CANCELLED' ? styles.statusCancelled : styles.statusProgress
+        ]}>
+          <Typography variant="caption" bold color={
+            item.status === 'COMPLETED' ? COLORS.success : 
+            item.status === 'CANCELLED' ? COLORS.danger : COLORS.primary
+          }>
+            {item.status}
+          </Typography>
+        </View>
+      </View>
+
+      <View style={styles.pathContainer}>
+        <View style={styles.timeline}>
+          <Circle color={COLORS.primary} fill={COLORS.primary} size={8} />
+          <View style={styles.dottedLine} />
+          <MapPin color={COLORS.accent} size={12} strokeWidth={3} />
+        </View>
+        <View style={styles.locations}>
+          <Typography variant="body" bold numberOfLines={1} style={styles.addressText}>
+            {item.pickupLocation?.address || 'Pickup'}
+          </Typography>
+          <Typography variant="body" bold numberOfLines={1} style={styles.addressText}>
+            {item.dropLocation?.address || 'Destination'}
+          </Typography>
+        </View>
+      </View>
+
+      <View style={styles.tripMetaRow}>
+        <View style={styles.metaItem}>
+          <View style={styles.metaIcon}>
+              <Car color={COLORS.primary} size={14} />
+          </View>
+          <Typography variant="caption" color={COLORS.textSecondary} bold>{item.vehicleType}</Typography>
+        </View>
+        <Typography variant="h3" bold color={COLORS.textPrimary}>₹{item.fare?.total || 0}</Typography>
+      </View>
+
+      <View style={styles.cardFooter}>
+        <TouchableOpacity style={styles.invoiceButton} onPress={() => navigation.navigate('Invoice', { bookingId: item._id })}>
+          <FileText color={COLORS.primary} size={18} />
+          <Typography variant="caption" bold color={COLORS.primary}>RECEIPT</Typography>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.rebookBtn}>
+          <Typography variant="caption" bold color={COLORS.white}>REBOOK</Typography>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -19,7 +105,7 @@ export const RideHistoryScreen = ({ navigation }: any) => {
           <ChevronLeft color={COLORS.textPrimary} size={24} strokeWidth={2.5} />
         </TouchableOpacity>
         <Typography variant="h2" bold style={styles.headerTitle}>Ride History</Typography>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity style={styles.backButton} onPress={fetchHistory}>
           <SlidersHorizontal color={COLORS.textPrimary} size={20} strokeWidth={2} />
         </TouchableOpacity>
       </View>
@@ -31,7 +117,7 @@ export const RideHistoryScreen = ({ navigation }: any) => {
             </View>
             <View>
                 <Typography variant="caption" color={COLORS.textSecondary} bold style={styles.summaryLabel}>TOTAL RIDES</Typography>
-                <Typography variant="h2" bold style={styles.summaryValue}>24</Typography>
+                <Typography variant="h2" bold style={styles.summaryValue}>{totals.count}</Typography>
             </View>
         </View>
         <View style={styles.spentCard}>
@@ -40,64 +126,34 @@ export const RideHistoryScreen = ({ navigation }: any) => {
             </View>
             <View>
                 <Typography variant="caption" color="rgba(255,255,255,0.6)" bold style={styles.summaryLabel}>SPENT</Typography>
-                <Typography variant="h2" bold color={COLORS.white} style={styles.summaryValue}>₹4.8k</Typography>
+                <Typography variant="h2" bold color={COLORS.white} style={styles.summaryValue}>₹{totals.spent}</Typography>
             </View>
         </View>
       </View>
 
-      <FlatList
-        data={RIDES}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={styles.rideCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.dateTimeContainer}>
-                <Typography variant="body" bold style={styles.dateText}>{item.date}</Typography>
-                <Typography variant="caption" color={COLORS.textSecondary} bold>{item.time}</Typography>
-              </View>
-              <View style={[styles.statusBadge, item.status === 'Completed' ? styles.statusCompleted : styles.statusCancelled]}>
-                <Typography variant="caption" bold color={item.status === 'Completed' ? COLORS.success : COLORS.danger}>
-                  {item.status.toUpperCase()}
-                </Typography>
-              </View>
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 16 }}>Loading history...</Typography>
+        </View>
+      ) : (
+        <FlatList
+          data={rides}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          renderItem={renderRideItem}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Car color={COLORS.border} size={64} style={{ marginBottom: 16 }} />
+              <Typography variant="h3" color={COLORS.textSecondary}>No rides found yet</Typography>
+              <Typography variant="body" color={COLORS.textSecondary} align="center" style={{ marginTop: 8 }}>
+                Your completed rides will appear here
+              </Typography>
             </View>
-
-            <View style={styles.pathContainer}>
-              <View style={styles.timeline}>
-                <Circle color={COLORS.primary} fill={COLORS.primary} size={8} />
-                <View style={styles.dottedLine} />
-                <MapPin color={COLORS.accent} size={12} strokeWidth={3} />
-              </View>
-              <View style={styles.locations}>
-                <Typography variant="body" bold style={styles.addressText}>Sector 44, Gurugram</Typography>
-                <Typography variant="body" bold style={styles.addressText}>{item.destination}</Typography>
-              </View>
-            </View>
-
-            <View style={styles.tripMetaRow}>
-              <View style={styles.metaItem}>
-                <View style={styles.metaIcon}>
-                    <Car color={COLORS.primary} size={14} />
-                </View>
-                <Typography variant="caption" color={COLORS.textSecondary} bold>Premium</Typography>
-              </View>
-              <Typography variant="h3" bold color={COLORS.textPrimary}>{item.price}</Typography>
-            </View>
-
-            <View style={styles.cardFooter}>
-              <TouchableOpacity style={styles.invoiceButton} onPress={() => navigation.navigate('Invoice')}>
-                <FileText color={COLORS.primary} size={18} />
-                <Typography variant="caption" bold color={COLORS.primary}>RECEIPT</Typography>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.rebookBtn}>
-                <Typography variant="caption" bold color={COLORS.white}>REBOOK RIDE</Typography>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -210,6 +266,25 @@ const styles = StyleSheet.create({
   },
   statusCancelled: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  statusProgress: {
+    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 100,
   },
   pathContainer: {
     flexDirection: 'row',

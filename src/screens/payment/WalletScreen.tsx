@@ -1,13 +1,47 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, ArrowUpRight, Car, CreditCard, Wallet, ChevronRight, TrendingUp, History } from 'lucide-react-native';
+import { Plus, ArrowUpRight, Car, CreditCard, Wallet, ChevronRight, TrendingUp, History, Clock } from 'lucide-react-native';
 import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
+import { walletService, Transaction } from '../../api/walletService';
 
 const WalletIcon = Wallet;
 
 export const WalletScreen = () => {
+  const [walletData, setWalletData] = useState<{ balance: number; transactions: Transaction[] }>({
+    balance: 0,
+    transactions: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    fetchWalletData();
+  }, []);
+
+  const fetchWalletData = async () => {
+    try {
+      const data = await walletService.getWalletData();
+      if (data.success) {
+        setWalletData({
+          balance: data.balance,
+          transactions: data.transactions,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching wallet data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchWalletData();
+  };
+
   const renderBalanceCard = () => (
     <View style={styles.balanceCard}>
       <View style={styles.balanceHeader}>
@@ -21,12 +55,12 @@ export const WalletScreen = () => {
       
       <View style={styles.balanceMain}>
         <Typography variant="h1" color={COLORS.white} style={styles.balanceAmount}>
-          ₹1,250.00
+          ₹{walletData.balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </Typography>
         <View style={styles.trendBadge}>
           <TrendingUp color={COLORS.accent} size={14} />
           <Typography variant="caption" color={COLORS.accent} bold style={styles.trendText}>
-          +12% this month
+          Real-time balance
         </Typography>
         </View>
       </View>
@@ -40,7 +74,7 @@ export const WalletScreen = () => {
         </TouchableOpacity>
         
         <TouchableOpacity style={styles.manageBtn}>
-          <Typography variant="caption" color={COLORS.white} bold>Manage Options</Typography>
+          <Typography variant="caption" color={COLORS.white} bold>Withdraw</Typography>
         </TouchableOpacity>
       </View>
     </View>
@@ -55,42 +89,48 @@ export const WalletScreen = () => {
         <Typography variant="caption" bold align="center">Transfer</Typography>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.actionItem}>
+      <TouchableOpacity style={styles.actionItem} onPress={onRefresh}>
         <View style={styles.topUpIconBox}>
-          <CreditCard color={COLORS.accent} size={24} />
+          <History color={COLORS.accent} size={24} />
         </View>
-        <Typography variant="caption" bold align="center">Top Up</Typography>
+        <Typography variant="caption" bold align="center">Reload</Typography>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.actionItem}>
         <View style={styles.historyIconBox}>
-          <History color="#EA580C" size={24} />
+          <CreditCard color="#EA580C" size={24} />
         </View>
-        <Typography variant="caption" bold align="center">History</Typography>
+        <Typography variant="caption" bold align="center">Cards</Typography>
       </TouchableOpacity>
     </View>
   );
 
-  const renderTransaction = (title: string, date: string, amount: string, isPositive: boolean, icon: any) => {
-    const Icon = icon;
+  const renderTransactionItem = (item: Transaction) => {
+    const isPositive = item.type === 'TOPUP' || item.type === 'REFUND';
+    const Icon = item.type === 'RIDE' ? Car : item.type === 'TOPUP' ? Plus : History;
+    
     return (
-      <TouchableOpacity style={styles.transactionCard} activeOpacity={0.7}>
+      <TouchableOpacity style={styles.transactionCard} activeOpacity={0.7} key={item._id}>
         <View style={styles.transactionLeft}>
-          <View style={styles.transactionIconBox}>
-            <Icon color={COLORS.textPrimary} size={20} />
+          <View style={[styles.transactionIconBox, { backgroundColor: isPositive ? 'rgba(0, 214, 125, 0.05)' : 'rgba(239, 68, 68, 0.05)' }]}>
+            <Icon color={isPositive ? COLORS.success : COLORS.danger} size={20} />
           </View>
           <View>
-            <Typography variant="body" bold style={styles.transactionTitle}>{title}</Typography>
-            <Typography variant="caption" color={COLORS.textSecondary}>{date}</Typography>
+            <Typography variant="body" bold style={styles.transactionTitle}>
+                {item.type === 'RIDE' ? 'Ride Payment' : item.type === 'TOPUP' ? 'Wallet Top-up' : 'Refund'}
+            </Typography>
+            <Typography variant="caption" color={COLORS.textSecondary}>
+                {new Date(item.transactionDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </Typography>
           </View>
         </View>
         <View style={styles.transactionRight}>
           <Typography 
             variant="body" 
             bold 
-            color={isPositive ? COLORS.accent : COLORS.danger}
+            color={isPositive ? COLORS.success : COLORS.danger}
           >
-            {isPositive ? '+' : '-'}{amount}
+            {isPositive ? '+' : '-'}₹{item.amount}
           </Typography>
           <ChevronRight color={COLORS.border} size={16} />
         </View>
@@ -107,27 +147,42 @@ export const WalletScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
-        showsVerticalScrollIndicator={false}
-      >
-        {renderBalanceCard()}
-        {renderQuickActions()}
-
-        <View style={styles.sectionHeader}>
-          <Typography variant="h3" bold>Recent Transactions</Typography>
-          <TouchableOpacity>
-            <Typography variant="caption" color={COLORS.accent} bold>See All</Typography>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
+      ) : (
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+          }
+        >
+          {renderBalanceCard()}
+          {renderQuickActions()}
 
-        <View style={styles.transactionsList}>
-          {renderTransaction('Ride to India Gate', 'Mar 10, 05:45 PM', '₹180', false, Car)}
-          {renderTransaction('Added to Wallet', 'Mar 08, 12:30 PM', '₹1,000', true, Plus)}
-          {renderTransaction('Ride to DLF Cyber City', 'Mar 08, 10:45 AM', '₹250', false, Car)}
-          {renderTransaction('Cashback Earned', 'Mar 05, 02:15 PM', '₹15', true, TrendingUp)}
-        </View>
-      </ScrollView>
+          <View style={styles.sectionHeader}>
+            <Typography variant="h3" bold>Recent Transactions</Typography>
+            <TouchableOpacity>
+              <Typography variant="caption" color={COLORS.accent} bold>See All</Typography>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.transactionsList}>
+            {walletData.transactions.length > 0 ? (
+              walletData.transactions.map(renderTransactionItem)
+            ) : (
+              <View style={styles.emptyTransactions}>
+                <Clock color={COLORS.border} size={48} />
+                <Typography variant="body" color={COLORS.textSecondary} style={{ marginTop: 12 }}>
+                  No transactions yet
+                </Typography>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -304,5 +359,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTransactions: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    opacity: 0.5,
   },
 });

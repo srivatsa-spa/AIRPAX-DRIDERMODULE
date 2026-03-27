@@ -6,21 +6,22 @@ import { Typography } from '../../components';
 import { COLORS, SPACING, SHADOWS, RADII } from '../../theme';
 import { bookingService } from '../../api/bookingService';
 
-export const CategorySelectionScreen = ({ navigation }: any) => {
+export const CategorySelectionScreen = ({ route, navigation }: any) => {
+  const { pickup, destination, distance: initialDistance = 8.5 } = route.params || {};
   const [selectedId, setSelectedId] = useState('1');
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const distance = 8.5; // Mock distance in KM
+  const distance = initialDistance; 
 
   useEffect(() => {
     const fetchFares = async () => {
       try {
-        const res = await bookingService.estimateFare(distance);
+        const res = await bookingService.estimateFare(pickup, destination);
         if (res.data?.categories) {
            setCategories(res.data.categories);
            setSelectedId(res.data.categories[0].id);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching fares', err);
       } finally {
         setLoading(false);
@@ -63,19 +64,23 @@ export const CategorySelectionScreen = ({ navigation }: any) => {
         
         <View style={styles.addressInfo}>
           <View style={styles.addressRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Typography variant="caption" color={COLORS.textSecondary} bold>PICKUP</Typography>
-              <Typography variant="body" bold style={styles.addressTitle}>Current Location</Typography>
+              <Typography variant="body" bold style={styles.addressTitle} numberOfLines={1}>
+                {pickup?.address || 'Current Location'}
+              </Typography>
             </View>
             <View style={styles.distanceInfo}>
-               <Typography variant="h3" color={COLORS.accent} bold>12.5 km</Typography>
-               <Typography variant="caption" color={COLORS.textSecondary}>22 min ETA</Typography>
+               <Typography variant="h3" color={COLORS.accent} bold>{distance} km</Typography>
+               <Typography variant="caption" color={COLORS.textSecondary}>15-20 min ETA</Typography>
             </View>
           </View>
           
           <View style={styles.addressSectionDestination}>
             <Typography variant="caption" color={COLORS.textSecondary} bold>DESTINATION</Typography>
-            <Typography variant="body" bold style={styles.addressTitle}>Selected Point</Typography>
+            <Typography variant="body" bold style={styles.addressTitle} numberOfLines={1}>
+              {destination?.address || 'Selected Point'}
+            </Typography>
           </View>
         </View>
       </View>
@@ -168,6 +173,8 @@ export const CategorySelectionScreen = ({ navigation }: any) => {
               const selectedItem = categories.find(c => c.id === selectedId);
               navigation.navigate('ConfirmBooking', { 
                 selectedCategory: selectedItem,
+                pickup,
+                destination,
                 distance: distance
               });
             }}
@@ -267,12 +274,14 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   addressTitle: {
-    fontSize: 18,
+    fontSize: 15, // Reduced from 18
     color: COLORS.textPrimary,
-    marginTop: 4,
+    marginTop: 2,
   },
   distanceInfo: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingLeft: 12,
   },
   sectionTitle: {
     marginTop: 32,
@@ -310,15 +319,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryName: {
-    fontSize: 18,
+    fontSize: 16, // Reduced from 18
     color: COLORS.textPrimary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   priceContainer: {
     alignItems: 'flex-end',
   },
   price: {
     color: COLORS.textPrimary,
+    fontSize: 18, // Slightly reduced
   },
   badgeContainer: {
     backgroundColor: COLORS.accent,
@@ -369,7 +379,7 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     marginRight: 12,
-    fontSize: 20,
+    fontSize: 18, // Reduced from 20
   },
   fareDetails: {
     alignItems: 'center',

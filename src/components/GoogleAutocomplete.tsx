@@ -10,11 +10,13 @@ const GOOGLE_MAPS_API_KEY = 'AIzaSyDKEBTCflJhmLKu_u5Yg35umBhwdqoa0Qg';
 interface Props {
   placeholder?: string;
   onSelect: (data: any) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
   initialValue?: string;
   style?: any;
 }
 
-export const GoogleAutocomplete = ({ placeholder, onSelect, initialValue = '', style }: Props) => {
+export const GoogleAutocomplete = ({ placeholder, onSelect, onFocus, onBlur, initialValue = '', style }: Props) => {
   const [input, setInput] = useState(initialValue);
   const [predictions, setPredictions] = useState<any[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
@@ -75,7 +77,15 @@ export const GoogleAutocomplete = ({ placeholder, onSelect, initialValue = '', s
           value={input}
           onChangeText={fetchPredictions}
           placeholderTextColor={COLORS.textSecondary}
-          onFocus={() => input.length >= 2 && setShowPredictions(true)}
+          onFocus={() => {
+            if (onFocus) onFocus();
+            if (input.length >= 2) setShowPredictions(true);
+          }}
+          onBlur={() => {
+            if (onBlur) onBlur();
+            // Delay closing to allow for item selection
+            setTimeout(() => setShowPredictions(false), 200);
+          }}
         />
         {isLoading && <ActivityIndicator size="small" color={COLORS.primary} style={styles.loader} />}
       </View>
@@ -128,21 +138,22 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     position: 'absolute',
-    top: 45,
+    top: 40,
     left: 0,
     right: 0,
     backgroundColor: COLORS.white,
     borderRadius: 8,
-    maxHeight: 250,
+    maxHeight: 300,
+    zIndex: 9999, // Ensure it's on top of everything
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 4,
+        elevation: 8,
       },
     }),
   },

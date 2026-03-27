@@ -7,9 +7,9 @@ import { COLORS, SPACING, SHADOWS } from '../../theme';
 import { useLocation } from '../../hooks/useLocation';
 
 const RECENT_LOCATIONS = [
-  { id: '1', name: 'India Gate', address: 'New Delhi, Delhi' },
-  { id: '2', name: 'DLF Cyber City', address: 'Gurugram, Haryana' },
-  { id: '3', name: 'Select Citywalk', address: 'Saket, New Delhi' },
+  { id: '1', name: 'India Gate', address: 'New Delhi, Delhi', latitude: 28.6129, longitude: 77.2295 },
+  { id: '2', name: 'DLF Cyber City', address: 'Gurugram, Haryana', latitude: 28.4951, longitude: 77.0877 },
+  { id: '3', name: 'Select Citywalk', address: 'Saket, New Delhi', latitude: 28.5288, longitude: 77.2183 },
 ];
 
 const LocationItem = ({ item, onPress }: { item: any, onPress: (item: any) => void }) => (
@@ -29,20 +29,48 @@ const LocationItem = ({ item, onPress }: { item: any, onPress: (item: any) => vo
 );
 
 export const AddressEntryScreen = ({ navigation }: any) => {
-  const { address, isLoading: isLocLoading } = useLocation();
+  const { location, address, isLoading: isLocLoading } = useLocation();
   const [pickup, setPickup] = useState({ address: 'Current Location', latitude: 0, longitude: 0 });
+  const [focusedField, setFocusedField] = useState<'pickup' | 'destination' | null>(null);
 
   useEffect(() => {
-    if (address && address !== 'Current Location') {
-      setPickup(prev => ({ ...prev, address }));
+    if (address && address !== 'Fetching location...' && location) {
+      setPickup({ 
+        address, 
+        latitude: location.latitude, 
+        longitude: location.longitude 
+      });
     }
-  }, [address]);
+  }, [address, location]);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const d = R * c; 
+    return parseFloat(d.toFixed(1));
+  };
 
   const handleSelectLocation = (location: any) => {
+    let dist = 8.5; // Fallback
+    const hasPickup = pickup && typeof pickup.latitude === 'number';
+    const hasDest = location && typeof location.latitude === 'number';
+
+    if (hasPickup && hasDest) {
+      dist = calculateDistance(pickup.latitude, pickup.longitude, location.latitude, location.longitude);
+      // Haversine gives straight line distance. For road distance, we add a 1.25x buffer if not using Google Distance Matrix
+      dist = parseFloat((dist * 1.25).toFixed(1));
+    }
+
     navigation.navigate('CategorySelection', { 
       pickup, 
       destination: location,
-      distance: 8.5 // Mock distance for flow
+      distance: dist
     });
   };
 
@@ -67,21 +95,25 @@ export const AddressEntryScreen = ({ navigation }: any) => {
             <MapPin color={COLORS.primary} size={16} strokeWidth={2.5} />
           </View>
           <View style={styles.inputs}>
-            <View style={styles.fieldWrapper}>
+            <View style={[styles.fieldWrapper, { zIndex: focusedField === 'pickup' ? 100 : 1 }]}>
               <GoogleAutocomplete 
                 placeholder="Enter pickup point"
                 initialValue={pickup.address}
                 onSelect={handlePickupSelect}
+                onFocus={() => setFocusedField('pickup')}
                 style={styles.field}
               />
               {isLocLoading && <ActivityIndicator size="small" color={COLORS.accent} style={styles.fieldLoader} />}
             </View>
             <View style={styles.fieldDivider} />
-            <GoogleAutocomplete 
-              placeholder="Where to?"
-              onSelect={handleSelectLocation}
-              style={styles.field}
-            />
+            <View style={[styles.fieldWrapper, { zIndex: focusedField === 'destination' ? 100 : 1 }]}>
+              <GoogleAutocomplete 
+                placeholder="Where to?"
+                onSelect={handleSelectLocation}
+                onFocus={() => setFocusedField('destination')}
+                style={styles.field}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -139,6 +171,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     ...SHADOWS.light,
+    zIndex: 5, // Ensure it's above the list but handles its own absolute children
   },
   inputWrapper: {
     flexDirection: 'row',
